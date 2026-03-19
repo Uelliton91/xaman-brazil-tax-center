@@ -1,0 +1,82 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: 247 249 252;
+  --card: 255 255 255;
+  --fg: 20 23 33;
+  --muted: 104 113 132;
+  --accent: 7 111 214;
+  --warning: 201 122 0;
+  --success: 0 128 95;
+}
+
+html,
+body {
+  background-color: transparent;
+}
+
+body {
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.dark {
+  --bg: 15 20 32;
+  --card: 28 36 55;
+  --fg: 239 243 252;
+  --muted: 173 186 209;
+  --accent: 109 181 255;
+  --warning: 255 182 65;
+  --success: 67 209 149;
+}
+
+main {
+  background: linear-gradient(170deg, rgb(var(--bg)) 0%, rgba(var(--bg), 0.94) 100%);
+}
+
+.card {
+  @apply rounded-2xl border border-white/20 bg-card/90 p-4 shadow-sm;
+}
+
+.badge {
+  @apply rounded-full border px-2 py-0.5 text-xs font-medium;
+}
+
+.btn {
+  @apply inline-flex items-center justify-center rounded-xl px-3 py-2 text-sm font-semibold transition-colors;
+}
+
+.btn-primary {
+  @apply btn bg-accent text-white hover:bg-accent/90;
+}
+
+.btn-secondary {
+  @apply btn bg-slate-200 text-slate-900 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600;
+}
+
+.input {
+  @apply w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none ring-accent/40 focus:ring-2 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-50;
+}
+
+.select {
+  @apply input;
+}
+
+.table-wrap {
+  @apply overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700;
+}
+
+table {
+  @apply min-w-full border-collapse text-sm;
+}
+
+th,
+td {
+  @apply border-b border-slate-200 px-3 py-2 text-left align-top dark:border-slate-700;
+}
+
+th {
+  @apply bg-slate-50 font-semibold dark:bg-slate-800;
+}
+

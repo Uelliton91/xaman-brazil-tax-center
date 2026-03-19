@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+coverage
+playwright-report
+.env
+.env.*
+!.env.example
+*.log
+test-results
+dev.db
+dev.db-journal
+*.sqlite
+*.sqlite3
+

@@ -1,0 +1,320 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum SessionMode {
+  XAPP
+  DEMO
+}
+
+enum NetworkType {
+  XRPL
+  XAHAU
+}
+
+enum AssetType {
+  NATIVE
+  ISSUED
+  NFT
+  UNKNOWN
+}
+
+enum EventType {
+  ACQUISITION
+  DISPOSAL
+  SWAP
+  TRANSFER_IN
+  TRANSFER_OUT
+  AIRDROP
+  REWARD
+  FEE
+  UNKNOWN_MANUAL_REVIEW
+  INFO_IGNORED
+}
+
+enum EventStatus {
+  AUTO
+  NEEDS_REVIEW
+  REVIEWED
+}
+
+enum ValuationSource {
+  EXECUTED_PAIR
+  DERIVED_PAIR
+  MARKET_PRICE
+  MANUAL_OVERRIDE
+  UNAVAILABLE
+}
+
+enum OverrideType {
+  CLASSIFICATION
+  VALUATION
+  SELF_TRANSFER
+  NOTES
+}
+
+enum RulesetStatus {
+  DRAFT
+  ACTIVE
+  DEPRECATED
+}
+
+enum ReportFormat {
+  PDF
+  CSV
+}
+
+enum SyncStatus {
+  IDLE
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+model UserSession {
+  id              String      @id @default(cuid())
+  mode            SessionMode
+  xamanUserToken  String?
+  xamanAccount    String?
+  consentAccepted Boolean     @default(false)
+  brazilTaxMode   Boolean     @default(true)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  wallets         Wallet[]
+  reminders       ReminderSetting?
+  manualOverrides ManualOverride[] @relation("OverrideAuthor")
+}
+
+model Wallet {
+  id        String      @id @default(cuid())
+  sessionId String
+  address   String
+  network   NetworkType
+  label     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  session          UserSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  rawTransactions  RawTransaction[]
+  normalizedEvents NormalizedEvent[]
+  syncCheckpoint   SyncCheckpoint?
+  reports          Report[]
+  auditLogs        AuditLog[]
+
+  @@unique([sessionId, address, network])
+  @@index([address, network])
+}
+
+model RawTransaction {
+  id              String      @id @default(cuid())
+  walletId        String
+  network         NetworkType
+  txHash          String
+  ledgerIndex     Int?
+  txType          String
+  executedAt      DateTime
+  rawJson         Json
+  sourceProvider  String
+  ingestionMarker String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  wallet          Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  normalizedEvent NormalizedEvent?
+
+  @@unique([walletId, network, txHash])
+  @@index([walletId, executedAt])
+}
+
+model Asset {
+  id           String      @id @default(cuid())
+  network      NetworkType
+  assetType    AssetType
+  symbol       String?
+  issuer       String?
+  currencyCode String?
+  tokenId      String?
+  internalKey  String      @unique
+  displayName  String
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  soldEvents     NormalizedEvent[] @relation("SoldAsset")
+  acquiredEvents NormalizedEvent[] @relation("AcquiredAsset")
+  feeEvents      NormalizedEvent[] @relation("FeeAsset")
+  pricePoints    PricePoint[]
+}
+
+model NormalizedEvent {
+  id                   String      @id @default(cuid())
+  walletId             String
+  rawTransactionId     String?     @unique
+  rulesetId            String?
+  occurredAt           DateTime
+  network              NetworkType
+  txHash               String?
+  eventType            EventType
+  status               EventStatus @default(AUTO)
+  confidence           Float
+  classificationReason String
+
+  assetSoldId     String?
+  assetAcquiredId String?
+  feeAssetId      String?
+
+  quantitySold     Decimal?
+  quantityAcquired Decimal?
+  feeQuantity      Decimal?
+
+  valuationBrl    Decimal?
+  proceedsBrl     Decimal?
+  costBasisBrl    Decimal?
+  realizedGainBrl Decimal?
+
+  valuationSource       ValuationSource?
+  fxSource              String?
+  priceSource           String?
+  notes                 String?
+  manualOverrideApplied Boolean          @default(false)
+  metadataJson          Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  wallet         Wallet           @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  rawTransaction RawTransaction?  @relation(fields: [rawTransactionId], references: [id], onDelete: SetNull)
+  ruleset        Ruleset?         @relation(fields: [rulesetId], references: [id], onDelete: SetNull)
+  assetSold      Asset?           @relation("SoldAsset", fields: [assetSoldId], references: [id], onDelete: SetNull)
+  assetAcquired  Asset?           @relation("AcquiredAsset", fields: [assetAcquiredId], references: [id], onDelete: SetNull)
+  feeAsset       Asset?           @relation("FeeAsset", fields: [feeAssetId], references: [id], onDelete: SetNull)
+  overrides      ManualOverride[]
+  auditLogs      AuditLog[]
+
+  @@index([walletId, occurredAt])
+  @@index([status])
+}
+
+model ManualOverride {
+  id                 String       @id @default(cuid())
+  normalizedEventId  String
+  createdBySessionId String?
+  overrideType       OverrideType
+  previousValue      Json?
+  newValue           Json
+  reason             String?
+  createdAt          DateTime     @default(now())
+
+  normalizedEvent  NormalizedEvent @relation(fields: [normalizedEventId], references: [id], onDelete: Cascade)
+  createdBySession UserSession?    @relation("OverrideAuthor", fields: [createdBySessionId], references: [id], onDelete: SetNull)
+}
+
+model AuditLog {
+  id                String   @id @default(cuid())
+  walletId          String?
+  normalizedEventId String?
+  action            String
+  detailsJson       Json?
+  createdAt         DateTime @default(now())
+
+  wallet          Wallet?          @relation(fields: [walletId], references: [id], onDelete: SetNull)
+  normalizedEvent NormalizedEvent? @relation(fields: [normalizedEventId], references: [id], onDelete: SetNull)
+}
+
+model PricePoint {
+  id           String   @id @default(cuid())
+  assetId      String
+  provider     String
+  quotedAt     DateTime
+  priceUsd     Decimal
+  confidence   Float
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  asset Asset @relation(fields: [assetId], references: [id], onDelete: Cascade)
+
+  @@unique([assetId, provider, quotedAt])
+}
+
+model FxRate {
+  id           String   @id @default(cuid())
+  base         String
+  quote        String
+  provider     String
+  quotedAt     DateTime
+  rate         Decimal
+  metadataJson Json?
+  createdAt    DateTime @default(now())
+
+  @@unique([base, quote, provider, quotedAt])
+}
+
+model Ruleset {
+  id            String        @id @default(cuid())
+  jurisdiction  String
+  taxYear       Int
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  version       String
+  status        RulesetStatus @default(DRAFT)
+  configJson    Json
+  sourceNotes   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  reports Report[]
+  events  NormalizedEvent[]
+
+  @@unique([jurisdiction, taxYear, version])
+  @@index([jurisdiction, taxYear, effectiveFrom, effectiveTo])
+}
+
+model Report {
+  id          String       @id @default(cuid())
+  walletId    String
+  rulesetId   String?
+  taxYear     Int
+  periodStart DateTime
+  periodEnd   DateTime
+  format      ReportFormat
+  fileName    String
+  summaryJson Json?
+  createdAt   DateTime     @default(now())
+
+  wallet  Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  ruleset Ruleset? @relation(fields: [rulesetId], references: [id], onDelete: SetNull)
+}
+
+model SyncCheckpoint {
+  id              String      @id @default(cuid())
+  walletId        String      @unique
+  network         NetworkType
+  marker          String?
+  lastLedgerIndex Int?
+  status          SyncStatus  @default(IDLE)
+  provider        String
+  lastSyncedAt    DateTime?
+  error           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+}
+
+model ReminderSetting {
+  id                     String   @id @default(cuid())
+  sessionId              String   @unique
+  annualReminderEnabled  Boolean  @default(true)
+  monthlyReminderEnabled Boolean  @default(true)
+  thresholdBannerEnabled Boolean  @default(true)
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  session UserSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
